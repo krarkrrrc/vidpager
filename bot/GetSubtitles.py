@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-
+import sys
+sys.path.append( '..' )
+from db import vpdb
 import urllib.request
 """
 V0.1 GET yt subtitles
@@ -34,4 +36,8 @@ def get_subtitles(input_video):
     except ValueError:
         print('Unkown url',input_video)
 
-print(get_subtitles(get_yt_sub_url(test_ids[0])))
+
+#print(get_subtitles(get_yt_sub_url(test_ids[0])))
+
+# cant find a working codec to decode the byte response
+vpdb.insert( 'test-title', 'test-link', get_subtitles( get_yt_sub_url( test_ids[0] ) ).decode( 'utf8' ) )
