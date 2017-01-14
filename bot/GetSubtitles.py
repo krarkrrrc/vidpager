@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 import sys
-sys.path.append( '..' )
+sys.path = ['.', '..'] + sys.path
 from db import vpdb
 import urllib.request
+
 """
 V0.1 GET yt subtitles
 example API url to get subtitles
@@ -19,6 +20,7 @@ def get_yt_sub_url(id):
     TODO add format option
     """
     url = 'https://www.youtube.com/api/timedtext?lang=en&v=' + id +'&fmt=vtt&name='
+    #url = 'https://www.youtube.com/api/timedtext?v=' + id +'&fmt=vtt&name='
     return url
 
 def get_subtitles(input_video):
@@ -37,7 +39,6 @@ def get_subtitles(input_video):
         print('Unkown url',input_video)
 
 
-#print(get_subtitles(get_yt_sub_url(test_ids[0])))
+subtitles =  str( get_subtitles( get_yt_sub_url( test_ids[0] ) ) )[2:-1]
+vpdb.insert( 'test-title', 'test-link', subtitles ) 
 
-# cant find a working codec to decode the byte response
-vpdb.insert( 'test-title', 'test-link', get_subtitles( get_yt_sub_url( test_ids[0] ) ).decode( 'utf8' ) )
