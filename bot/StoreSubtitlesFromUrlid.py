@@ -44,6 +44,18 @@ def get_title( url_or_urlid ):
     """
     return ""
 
+def get_author( url_or_urlid ):
+    return ""
+def get_length( url_or_urlid ):
+    return ""
+def get_date( url_or_urlid ):
+    return ""
+def get_category( url_or_urlid ):
+    return ""
+def get_tags( url_or_urlid ):
+    return ""
+
+
 
 def store( url_or_urlid ):
     """
@@ -55,7 +67,16 @@ def store( url_or_urlid ):
     if ( url_validate_test ):
         pass
     elif ( urlid_validate_test ):
-        DbTools.insert_raw_subtitles( url_or_urlid, get_raw_subtitles( get_yt_sub_url( url_or_urlid ) ), get_title( url_or_urlid ) ) 
+        DbTools.insert( url_or_urlid,\
+                        get_raw_subtitles( get_yt_sub_url( url_or_urlid ) ),\
+                        get_title( url_or_urlid ),\
+                        get_author( url_or_urlid ),\
+                        get_length( url_or_urlid ),\
+                        get_date( url_or_urlid ),\
+                        get_category( url_or_urlid ),\
+                        get_tags( url_or_urlid ),\
+                        '0'\
+                        ) 
     else:
         raise ValueError( "Failed to store '" + url_or_urlid + "': did not validate" ) 
         

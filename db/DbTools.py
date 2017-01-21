@@ -14,33 +14,39 @@ def init():
     #              ( version real )" )
     try:
         cursor = con.execute( "SELECT version FROM schemaversion WHERE rowid = 1" )
-        version = cursor.fetchone()[0]
     except sqlite3.OperationalError as e:
-        if ( e.args[0] == 'no such table: schemaversion' ):
-            con.execute( '''CREATE TABLE IF NOT EXISTS schemaversion
-                          ( rowid INTEGER PRIMARY KEY, version text)''' )
-            version = "0.0"
-            insert( version, table='schemaversion' )
-    con.execute( '''CREATE TABLE IF NOT EXISTS subtitles
-                    ( rowid INTEGER PRIMARY KEY, urlid text, title text, captions text, timestamps text, asr integer )''' )
+        print( '****', e, '\nCreating schemaversion table' )
+        con.execute( '''CREATE TABLE IF NOT EXISTS schemaversion
+                        ( rowid INTEGER PRIMARY KEY, version text)''' )
+        version = "0.0"
+        insert_args( version, table='schemaversion' )
+        con.execute( '''CREATE TABLE IF NOT EXISTS subtitles
+                        ( rowid INTEGER PRIMARY KEY, urlid text, captions text, timestamps text, title text, author text, length integer, date integer, category text, tags text, asr integer )''' )
+        cursor = con.execute( "SELECT version FROM schemaversion WHERE rowid = 1" )
+    version = cursor.fetchone()[0]
     print( 'initial database version = ', version )
     if version == "0.0":
-        con.execute( '''ALTER TABLE subtitles
-                        ADD version TEXT;''' )
-        con.execute( '''UPDATE schemaversion
-                        SET version = '0.1';''' )
-    return con
+        pass
 
-def insert( *args,  table='subtitles', **kwargs ):
+def get_con():
+    return sqlite3.connect( CONST.db_name )
+
+def insert_args( *args,  table='subtitles', **kwargs ):
     """
     Inserts a complete row into a table, the rowid is automatically appended as NULL to the end
     """
-    con = init()
-    args_str = ','.join( args )
+
+    if table == 'subtitles':
+        subs = str( args[1] )[2:-1]
+        parsed_subs = parse_subtitles( subs ) 
+        args = [ args[0], parsed_subs['captions'], parsed_subs['timestamps'], args[2], args[3], args[4], args[5], args[6], args[7], args[8] ]
+    
+    con = get_con()
+    args_str = "','".join( args )
 
     try:
         with con:
-            con.execute( "INSERT INTO " + table + " VALUES ( 'NULL, " + args_str + "')" )
+            con.execute( "INSERT INTO " + table + " VALUES ( NULL, '" + args_str + "')" )
     except sqlite3.IntegrityError:
         print( "Error inserting into db" )
 
@@ -49,7 +55,7 @@ def get_rowid_from_urlid( urlid ):
     """
     Returns a row id to select columns from
     """
-    con = init()
+    con = get_con()
 
     try:
         with con:
@@ -60,7 +66,7 @@ def get_rowid_from_urlid( urlid ):
     return rowid
 
 def get_column_from_rowid( rowid, column ):
-    con = init()    
+    con = get_con()
     
     try:
         with con:
@@ -88,8 +94,22 @@ def parse_subtitles( subtitles ):
 
     return { 'captions' : captions, 'timestamps' : timestamps }
 
-def insert_raw_subtitles( urlid, raw_subs, title ):
-    subs = str( raw_subs )[2:-1]
-    parsed_subs = parse_subtitles( subs ) 
-    insert( urlid, title, parsed_subs['captions'], parsed_subs['timestamps'], '0') 
+def insert( *args, **kwargs ):
+    if len( args ) == 9:
+        insert_args( *args )
+    elif len( kwargs ) == 9:
+        urlid = kwargs['url_or_urlid'] 
+        raw_subs = kwargs['raw_subs']
+        title = kwargs['title']
+        author = kwargs['author']
+        length = kwargs['length']
+        date = kwargs['date']
+        category = kwargs['category']
+        tags = kwargs['tags']
+        asr = kwargs['asr']
+        insert_args( urlid, raw_subs, title, author, length, date, category, tags, asr )
+    else:
+        raise ValueError( "Not enough arguments provided to DbTools.insert()" )
+    return
+
 
