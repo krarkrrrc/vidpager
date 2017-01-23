@@ -2,6 +2,7 @@ import sys
 import sqlite3
 import CONST 
 import re
+import datetime
 
 """
 Provides the low-level functions to insert, query and update the db
@@ -93,6 +94,16 @@ def parse_subtitles( subtitles ):
         count += 1
 
     return { 'captions' : captions, 'timestamps' : timestamps }
+
+def parse_date( date_str ):
+    match = re.search( r'(\d{4})-(\d\d)-(\d\d)\s(\d\d):(\d\d):(\d\d)', date_str ).groups()
+    print( 'match length is *****: ', len( match ) )
+    try:
+        date = datetime.datetime( int( match[0] ), int( match[1] ), int( match[2] ), int( match[3] ), int( match[4] ), int( match[5] ), tzinfo=datetime.timezone.utc )
+    except TypeError as e:
+        print( CONST.vp_error + 'valid date string not found in DbTools.parse_date()', e )
+        raise e
+    return date
 
 def insert( *args, **kwargs ):
     if len( args ) == 9:

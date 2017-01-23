@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import sys
 sys.path = ['.', '..'] + sys.path
+import CONST
 import re #for def store()
 from db import DbTools #for def store()
 from urllib.request import urlopen #to get subtitles
 from pafy import new #for getting metadata
+import datetime
 
 """
 V0.1 GET yt subtitles
@@ -55,7 +57,13 @@ def get_length(video):
     #TODO must be str because of args_str = "','".join( args ) in DbTools.insert_args
     return str(video.length)
 def get_date(video):
-    return video.published
+    date_str = video.published
+    # verify date is valid
+    try:
+        DbTools.parse_date( date_str )
+    except TypeError as e:
+        print( CONST.vp_error + 'invalid date found for title: ' + video.title )
+    return date_str
 def get_category(video):
     return video.category
 def get_tags(video):
