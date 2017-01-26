@@ -1,126 +1,64 @@
-import sys
-import sqlite3
-import CONST 
-import re
-import datetime
+import CONST
+from sqlalchemy import create_engine #motor
+from sqlalchemy import MetaData #easy work with "structures"
+from sqlalchemy import Table, Column #structure
+from sqlalchemy import Integer, String, DateTime, Boolean #datatypes
+from sqlalchemy import select #for reading
 
-"""
-Provides the low-level functions to insert, query and update the db
-"""
+#TODO DON'T save same urlid twice, partially solved in try block in vidpager.py
+#metadata is collection of tables and can be traversed like XML DOM
+metadata = MetaData()
+#needed for all the defs to reference engine
+engine = create_engine("sqlite:///" + CONST.db_name)
+
+#schema, use foreignkeys, if we need to make relationship between tables
+subtitles_table = Table("subtitles", metadata,
+    Column("rowid", Integer, primary_key=True),
+    Column("urlid", String),
+    Column("captions", String),
+    Column("timestamps", String),
+    Column("title", String),
+    Column("author", String),
+    Column("length", Integer),
+    Column("date", DateTime), #Was Integer
+    Column("category", String),
+    Column("tags", String),
+    Column("asr", Boolean) #Was Integer
+)
+
 
 def init():
-    con = sqlite3.connect( CONST.db_name )
-    # asr value is auto-speech-recognition rendered captions, either 0 (false) or 1 (true)
-    #con.execute( "CREATE TABLE IF NOT EXISTS schemaversion
-    #              ( version real )" )
-    try:
-        cursor = con.execute( "SELECT version FROM schemaversion WHERE rowid = 1" )
-    except sqlite3.OperationalError as e:
-        print( '****', e, '\nCreating schemaversion table' )
-        con.execute( '''CREATE TABLE IF NOT EXISTS schemaversion
-                        ( rowid INTEGER PRIMARY KEY, version text)''' )
-        version = "0.0"
-        insert_args( version, table='schemaversion' )
-        con.execute( '''CREATE TABLE IF NOT EXISTS subtitles
-                        ( rowid INTEGER PRIMARY KEY, urlid text, captions text, timestamps text, title text, author text, length integer, date integer, category text, tags text, asr integer )''' )
-        cursor = con.execute( "SELECT version FROM schemaversion WHERE rowid = 1" )
-    version = cursor.fetchone()[0]
-    print( 'initial database version = ', version )
-    if version == "0.0":
-        pass
+    #metadata.create_all(engine) creates everything where metadata is
+    subtitles_table.create(engine) #creates just subtitles_table
 
-def get_con():
-    return sqlite3.connect( CONST.db_name )
 
-def insert_args( *args,  table='subtitles', **kwargs ):
+#TODO I am not sure about what **kwars would be for here
+def insert(video_data,  table=subtitles_table, **kwargs):
     """
-    Inserts a complete row into a table, the rowid is automatically appended as NULL to the end
+    Inserts a complete row into a table
+    video_data must be exact dict returned by bot
     """
+    subtitle_insert = Table.insert(table).values(
+        urlid = video_data['video_id'],
+    	captions = video_data['captions'],
+    	timestamps = video_data['timestamps'],
+    	title = video_data['title'],
+    	author = video_data['author'],
+    	length = video_data['length'],
+    	date = video_data['date'],
+    	category = video_data['category'],
+    	tags = video_data['tags'],
+    	asr = video_data['asr']
+    )
+    engine.execute(subtitle_insert)
 
-    if table == 'subtitles':
-        subs = str( args[1] )[2:-1]
-        parsed_subs = parse_subtitles( subs ) 
-        args = [ args[0], parsed_subs['captions'], parsed_subs['timestamps'], args[2], args[3], args[4], args[5], args[6], args[7], args[8] ]
-    
-    con = get_con()
-    args_str = "','".join( args )
 
-    try:
-        with con:
-            con.execute( "INSERT INTO " + table + " VALUES ( NULL, '" + args_str + "')" )
-    except sqlite3.IntegrityError:
-        print( "Error inserting into db" )
-
-
-def get_rowid_from_urlid( urlid ):
+def get_data(urlid, data):
     """
-    Returns a row id to select columns from
+    Returns data from urlid
     """
-    con = get_con()
-
-    try:
-        with con:
-            rowid = str( con.execute( "SELECT rowid FROM subtitles WHERE urlid =:urlid", {"urlid": urlid} ).fetchone()[0] )
-    except sqlite3.IntegrityError:
-        print( "Error in get_rowid_from_urlid" )
-    #print( "rowid = " + str( rowid ) )
-    return rowid
-
-def get_column_from_rowid( rowid, column ):
-    con = get_con()
-    
-    try:
-        with con:
-            column_data = str( con.execute( "SELECT " + column + " FROM subtitles WHERE rowid = " + rowid + ";" ).fetchone()[0] )
-    except sqlite3.IntegrityError:
-        print( "Error in get_column_from_rowid" )
-    return column_data
-
-def get_column_from_urlid( urlid, column ):
-    return get_column_from_rowid( get_rowid_from_urlid( urlid ), column )
-
-def parse_subtitles( subtitles ):
-    """
-    I don't think this belongs in DbTools
-    """
-    # match[0] is timestamp, [1] is caption
-    matches = re.findall( r'(\d\d:\d\d:\d\d\.\d\d\d\s-->\s\d\d:\d\d:\d\d\.\d\d\d)\\n([\w\s\d\\\,\.\;\:\$\!\%\)\(\?\/\'\"\-]+)\\n\\n', subtitles ) 
-    captions = ""
-    timestamps = ""
-    count = 0
-    for match in matches:
-        captions += '<' + str( count ) + '>' + match[1]
-        timestamps += '<' + str( count ) + '>' + match[0]
-        count += 1
-
-    return { 'captions' : captions, 'timestamps' : timestamps }
-
-def parse_date( date_str ):
-    match = re.search( r'(\d{4})-(\d\d)-(\d\d)\s(\d\d):(\d\d):(\d\d)', date_str ).groups()
-    print( 'match length is *****: ', len( match ) )
-    try:
-        date = datetime.datetime( int( match[0] ), int( match[1] ), int( match[2] ), int( match[3] ), int( match[4] ), int( match[5] ), tzinfo=datetime.timezone.utc )
-    except TypeError as e:
-        print( CONST.vp_error + 'valid date string not found in DbTools.parse_date()', e )
-        raise e
-    return date
-
-def insert( *args, **kwargs ):
-    if len( args ) == 9:
-        insert_args( *args )
-    elif len( kwargs ) == 9:
-        urlid = kwargs['url_or_urlid'] 
-        raw_subs = kwargs['raw_subs']
-        title = kwargs['title']
-        author = kwargs['author']
-        length = kwargs['length']
-        date = kwargs['date']
-        category = kwargs['category']
-        tags = kwargs['tags']
-        asr = kwargs['asr']
-        insert_args( urlid, raw_subs, title, author, length, date, category, tags, asr )
-    else:
-        raise ValueError( "Not enough arguments provided to DbTools.insert()" )
-    return
-
-
+    #TODO return more data at once, calling this often is probably expensive op
+    select_by_urlid = select([subtitles_table]).\
+    where(subtitles_table.c.urlid == urlid)
+    result = engine.execute(select_by_urlid)
+    return result.fetchone()[data]
