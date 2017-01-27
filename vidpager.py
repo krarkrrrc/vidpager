@@ -1,9 +1,11 @@
+#!/usr/bin/env python
+#for loading modules in folders
+import sys
+sys.path = ['.', '..'] + sys.path
 import CONST
-import sys #for args
-sys.path = ['.', '..'] + sys.path #what is this for?
-from bot import StoreSubtitlesFromUrlid #for getting yt data
-import ScanTools #for searching
+from bot import GetSubtitles #for getting yt data
 from db import DbTools #for Db stuff
+import ScanTools #for searching
 import os.path #for checking if db exist
 
 """
@@ -40,8 +42,13 @@ else:
     except TypeError:
         #save new video
         print('Saving subtitles for video',input_url,'\n')
-        DbTools.insert(StoreSubtitlesFromUrlid.store(input_url))
+        DbTools.insert(
+        table=DbTools.subtitles_table,
+        dict=GetSubtitles.store(input_url)
+        )
 
     # search vid for keyword provided from cmd line
+    # TODO replace with ui print
     for match in ScanTools.text_search( input_url, sys.argv[1] ):
-        print( match['timestamp'] + ' - "' + match['caption'] + '"\n', match['url'] + '\n' )
+        print("{0} - \"{1}\"\n"
+        "{2}\n".format(match['timestamp'], match['caption'], match['url']))

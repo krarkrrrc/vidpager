@@ -1,13 +1,9 @@
 #!/usr/bin/env python
-import sys
-sys.path = ['.', '..'] + sys.path
 import CONST
-import re #for def store()
-import datetime # for datetime
-from db import DbTools #for def store()
 from urllib.request import urlopen #to get subtitles
 import pafy #for getting metadata
-
+import re #for def store()
+import datetime # for datetime
 
 """
 V0.1 GET yt subtitles
@@ -48,27 +44,18 @@ def get_metadata(video_id):
         print('Unkown url',url)
         # TODO return error
 
-#not used
-#TODO I am lame at raising errors, but KISS?
-def get_date(video):
-    date_str = video.published
-    # verify date is valid
-    try:
-        datetime = parse_date( date_str )
-    except TypeError as e:
-        print( CONST.vp_error + 'invalid date found for title: ' + video.title )
-    return datetime
-
 def store(urlid):
     """
     store a videos subtitles by either a urlid or url (not yet implement)
     TODO write url_validate code
+    TODO is validation needed? get_{metadata/raw_subtitles} are handling it
     """
     url_validate_test = False
-    urlid_validate_test = re.search( '[\d\w]{11}', urlid )
+    urlid_validate_test = re.search( '[\d\w\-]{11}', urlid )
     if ( url_validate_test ):
         pass
     elif ( urlid_validate_test ):
+        #urlid is youtube id, validated, storing
         metadata = get_metadata(urlid)
         raw_subs = get_raw_subtitles(urlid)
         if not raw_subs:
@@ -79,13 +66,13 @@ def store(urlid):
             asr = False
         parsed_subs = parse_subtitles(raw_subs)
         return {
-         'video_id' : urlid,
+         'urlid' : urlid,
          'captions' : parsed_subs['captions'],
          'timestamps' : parsed_subs['timestamps'],
          'title' : metadata.title,
          'author' : metadata.author,
          'length' : metadata.length,
-         'date' : parse_date(metadata.published),
+         'date' : get_date(metadata),
          'category' : metadata.category,
          'tags' : ','.join(metadata.keywords),
          'asr' : asr
@@ -96,10 +83,10 @@ def store(urlid):
 
 def parse_subtitles( subtitles ):
     """
-    returns dict of captions and timestamps from raw subtitles in vtt from youtube
+    returns dict of captions and timestamps from subtitles in vtt from youtube
     """
     # match[0] is timestamp, [1] is caption
-    matches = re.findall( r'(\d\d:\d\d:\d\d\.\d\d\d\s-->\s\d\d:\d\d:\d\d\.\d\d\d)\\n([\w\s\d\\\,\.\;\:\$\!\%\)\(\?\/\'\"\-]+)\\n\\n', str(subtitles)[2:-1] )
+    matches = re.findall( CONST.raw_subs_patt, str(subtitles)[2:-1] )
     captions = ""
     timestamps = ""
     count = 0
@@ -111,12 +98,33 @@ def parse_subtitles( subtitles ):
     return { 'captions' : captions, 'timestamps' : timestamps }
 
 
+def get_date(video):
+    """
+    returns datetime.datetime object from pafy.new('videoid').published
+    prints for which video (pafy.new object) the date is invalid
+    """
+    date_str = video.published
+    # verify date is valid
+    try:
+        datetime = parse_date( date_str )
+    except TypeError as e:
+        print( CONST.vp_error + 'invalid date found for title: ' + video.title )
+    return datetime
+
+
 def parse_date( date_str ):
+    """
+    Converts datetime string returned from pafy.new('videoid').published
+    """
     match = re.search( r'(\d{4})-(\d\d)-(\d\d)\s(\d\d):(\d\d):(\d\d)', date_str ).groups()
     print( 'match length is *****: ', len( match ) )
     try:
-        date = datetime.datetime( int( match[0] ), int( match[1] ), int( match[2] ), int( match[3] ), int( match[4] ), int( match[5] ), tzinfo=datetime.timezone.utc )
+        date = datetime.datetime(
+        int( match[0] ), int( match[1] ), int( match[2] ), int( match[3] ),
+        int( match[4] ), int( match[5] ), tzinfo=datetime.timezone.utc )
     except TypeError as e:
-        print( CONST.vp_error + 'valid date string not found in DbTools.parse_date()', e )
+        print('{0} valid date string not found in '
+              'StoreSubtitlesFromUrlid.parse_date() {1}'
+              .format(CONST.vp_error, e))
         raise e
     return date
