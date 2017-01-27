@@ -91,7 +91,7 @@ def store(urlid):
          'asr' : asr
           }
     else:
-        raise ValueError( "Failed to store '" + url_or_urlid + "': did not validate" )
+        raise ValueError( "Failed to store '" + urlid + "': did not validate" )
 
 
 def parse_subtitles( subtitles ):

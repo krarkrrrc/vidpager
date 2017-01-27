@@ -1,4 +1,5 @@
 import CONST
+import ScanTools #for search_all
 from sqlalchemy import create_engine #motor
 from sqlalchemy import MetaData #easy work with "structures"
 from sqlalchemy import Table, Column #structure
@@ -62,3 +63,16 @@ def get_data(urlid, data):
     where(subtitles_table.c.urlid == urlid)
     result = engine.execute(select_by_urlid)
     return result.fetchone()[data]
+
+
+def search_all(target):
+    urlids_with_subtitles = select([subtitles_table.c.urlid]).\
+    where(subtitles_table.c.asr == 0)
+    raw_all = engine.execute(urlids_with_subtitles).fetchall()
+    print('Searching in',len(raw_all),'entries')
+    for url_id in raw_all:
+        #rawall is a list with sqlalchemy.engine.result.RowProxy
+        for index, match in enumerate(ScanTools.text_search(url_id.values()[0], target)):
+            if index == 0:
+                print("\n----- {0} -----".format(get_data(url_id.values()[0],'title')))
+            print( match['timestamp'] + ' - "' + match['caption'] + '"\n', match['url'] + '\n' )
