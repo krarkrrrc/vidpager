@@ -43,8 +43,8 @@ else:
         #save new video
         print('Saving subtitles for video',input_url,'\n')
         DbTools.insert(
-        table=DbTools.subtitles_table,
-        dict=GetSubtitles.store(input_url)
+        'subtitles',
+        **GetSubtitles.store(input_url)
         )
 
     # search vid for keyword provided from cmd line

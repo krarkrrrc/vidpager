@@ -32,37 +32,23 @@ def init():
     subtitles_table.create(engine) #creates just subtitles_table
 
 
-def insert(table=None, dict=None):
+def insert(table=None, *args, **kwargs):
     #TODO is this the right way?
-    table_insert = Table.insert(table).values()
-    for i in dict.items():
-        table_insert.parameters[i[0]] = i[1]
-    #try:
-    engine.execute(table_insert)
-    #not sure what errors it can return yet
-    #except:
-
+    if table == 'subtitles':
+        insert_to_subtitles( **kwargs )
+    else:
+        raise NotImplementedError( "table '" + table + "' not implemented" )
 
 #insert function made this redundant
-def insert_to_subtible(video_data, table=subtitles_table):
+def insert_to_subtitles( **kwargs ) :
     """
     Inserts a complete row into a table
     video_data must be exact dict returned by bot
     """
     #TODO DON'T save same urlid twice, partially solved in try block in vidpager.py
-    subtitle_insert = Table.insert(table).values(
-        urlid = video_data['video_id'],
-    	captions = video_data['captions'],
-    	timestamps = video_data['timestamps'],
-    	title = video_data['title'],
-    	author = video_data['author'],
-    	length = video_data['length'],
-    	date = video_data['date'],
-    	category = video_data['category'],
-    	tags = video_data['tags'],
-    	asr = video_data['asr']
-    )
-    engine.execute(subtitle_insert)
+    #print( kwargs['urlid'], kwargs['author'], kwargs['title'] )
+    table_insert = Table.insert( subtitles_table ).values( **kwargs )
+    engine.execute(table_insert)
 
 
 def get_data(urlid, *keys):

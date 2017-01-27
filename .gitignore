@@ -1,6 +1,9 @@
 # Project-specific
 *.db
 *.vim
+*.swp
+*.swo
+.backup/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
