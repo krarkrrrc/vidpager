@@ -68,14 +68,14 @@ def get_yt_dict(urlid, get_asr_subitles=False):
         asr = True
         if get_asr_subitles:
             #TODO parse_subtitles can't handle raw_asr_subs yet
-            raw_asr_subs = ask_youtube_dl_for_asr_subtitles(urlid)
-            if raw_asr_subs:
-                print('Testing length of subs',len(raw_asr_subs))
-                #parsed_subs = parse_subtitles(raw_asr_subs)
-                #result['captions'] = parsed_subs['captions']
-                #result['timestamps'] = parsed_subs['timestamps']
+            parsed_asr_subs = ask_youtube_dl_for_asr_subtitles(urlid)
+            if parsed_asr_subs:
+                result['captions'] = parsed_asr_subs['captions']
+                result['timestamps'] = parsed_asr_subs['timestamps']
             else:
-                save_empty_subs()
+                #download audio and make it yourself, NOPE!
+                print('Fail to pass subtitles, FIX!')
+                return False
         else:
             save_empty_subs()
     else:
@@ -89,6 +89,22 @@ def get_yt_dict(urlid, get_asr_subitles=False):
 
 
 def ask_youtube_dl_for_asr_subtitles(urlid):
+    def clean_asr_subtitles(data):
+        #probably static
+        c1 = data.replace('<c>','').replace('</c>','')
+        c2 = c1.replace('<c.colorE5E5E5>','').replace('<c.colorCCCCCC>','')
+        c3 = c2.replace(' align:start position:19%','') #have to do re
+        final = c3
+        result = ''
+        for line in final.split('\n'):
+            if line.startswith('00"'): #replace with re somehow or set?
+                result += line + '\n'
+            #elif len(line) > 1:
+            else:
+                #print('TTTTTTt',line)
+                filt = re.sub('\<\d\d:\d\d:\d\d\.\d\d\d\>', '', line)
+                result += filt + '\n'
+        return result
     #TODO pls do this pythonic way
     #TODO cleanup the temp.en.vtt
     #maybe needed?
@@ -96,17 +112,29 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
     # --convert-subs vtt
     # with no -o passed, default format would be:
     # target_file = metadata['title'] + '-' + metadata['urlid'] + '.en.vtt'
-    ytdl_asubs = ['youtube-dl',urlid,'--write-auto-sub','--skip-download', '-o'+urlid]
+    #TODO Bug with urlid -8vDwiwlnmI, returns youtube-dl: error: no such option: -8
+    ytdl_asubs = ['youtube-dl', urlid,'--write-auto-sub','--skip-download', '-o'+urlid]
     if subprocess.run(ytdl_asubs).returncode == 0:
         target_file = urlid + '.en.vtt'
         if path.isfile(target_file):
             print('Subtitles are in',target_file,'Loading')
             with open(target_file, 'r') as f:
                 raw_subtitle_data = f.read()
-            remove(target_file)
-            #TODO try n except?
-            #TODO pass that parse_subs
-            return raw_subtitle_data
+            remove(target_file) #file loaded, clean
+            cleaned_subtitles = clean_asr_subtitles(raw_subtitle_data)
+            matches = re.findall( CONST.asr_raw_subs_patt, cleaned_subtitles)
+            captions = ""
+            timestamps = ""
+            count = 0
+            for match in matches:
+                captions += '<' + str( count ) + '>' + match[1]
+                timestamps += '<' + str( count ) + '>' + match[0]
+                count += 1
+            if len(matches) == 0:
+                #regex didn't work
+                return False
+            else:
+                return { 'captions' : captions, 'timestamps' : timestamps }
         else:
             print('Failed to find file',target_file)
         print('Downloaded but no file? Probably not available, OR HANDLE!!!')
@@ -170,5 +198,8 @@ def parse_subtitles( subtitles ):
         captions += '<' + str( count ) + '>' + match[1]
         timestamps += '<' + str( count ) + '>' + match[0]
         count += 1
-
-    return { 'captions' : captions, 'timestamps' : timestamps }
+    if len(matches) == 0:
+        #regex didn't work
+        return False
+    else:
+        return { 'captions' : captions, 'timestamps' : timestamps }

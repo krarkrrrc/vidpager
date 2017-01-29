@@ -14,7 +14,9 @@ python vidpager.py $target_string
 ```
 NOTE:
 - target_string can be only words and spaces, no special characters
-- youtube_id is any youtube url as long as its 11 last characters are its id
+- youtube_id is any youtube url as long as its has 11 chars youtube id in it
+- subtitles passed via asr can be searched only with youtube_id, see
+  CONST.test_urlids_for_asr for some tests
 
 #TestCase
 13 videos with subtitles
