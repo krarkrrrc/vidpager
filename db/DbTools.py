@@ -5,9 +5,12 @@ from sqlalchemy import MetaData #easy work with "structures"
 from sqlalchemy import Table, Column #structure
 from sqlalchemy import Integer, String, DateTime, Boolean #datatypes
 from sqlalchemy import select #for reading
+from sqlalchemy.exc import NoSuchColumnError #for bad call of get_data
 
 #metadata is collection of tables and can be traversed like XML DOM
 metadata = MetaData()
+#TODO use conn and execute sql via connection and handle close when all is done
+#TODO first vidpager.py must handle multiple queries
 #needed for all the defs to reference engine
 engine = create_engine("sqlite:///" + CONST.db_name)
 
@@ -34,7 +37,7 @@ def init():
 
 def insert(table=None, *args, **kwargs):
     #TODO is this the right way?
-    if table == 'subtitles':
+    if table == 'subtitles_table':
         insert_to_subtitles( **kwargs )
     else:
         raise NotImplementedError( "table '" + table + "' not implemented" )
@@ -59,10 +62,17 @@ def get_data(urlid, *keys):
     select_by_urlid = select([subtitles_table]).\
     where(subtitles_table.c.urlid == urlid)
     result_row = engine.execute(select_by_urlid).fetchone()
-    result = []
-    for key in keys:
-        result.append(result_row[key])
-    return result
+    if result_row:
+        result = []
+        for key in keys:
+            try:
+                result.append(result_row[key])
+            except NoSuchColumnError as NSCE:
+                print(NSCE)
+                return False
+        return result
+    else:
+        return False
 
 
 def search_all(target):
