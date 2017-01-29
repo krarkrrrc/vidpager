@@ -71,7 +71,7 @@ if __name__ == '__main__':
         else:
             #not saved, try to save
             print('Trying to save subtitle data for video',input_url)
-            subtitles_table_insert_data = GetSubtitles.store(input_url)
+            subtitles_table_insert_data = GetSubtitles.get_yt_dict(input_url, get_asr_subitles=True)
             if subtitles_table_insert_data:
                 DbTools.insert('subtitles_table',
                 **subtitles_table_insert_data)

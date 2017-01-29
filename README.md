@@ -1,8 +1,10 @@
 # Dependencies
     - pafy (arch package community/python-pafy )
     - sqlalchemy (arch package community/python-sqlalchemy)
+    - youtube-dl (arch package community/youtube-dl) - only if GetSubtitles.get_yt_dict(input_url, get_asr_subitles=True) is used
 # Usage
 To search in certain video id and to store it
+use ^SAVE_ONLY^ if you want to skip searching, just save
 ```bash
 python vidpager.py $target_string $youtube_id
 ```
@@ -15,8 +17,8 @@ NOTE:
 - youtube_id is any youtube url as long as its 11 last characters are its id
 
 #TestCase
-10 videos with subtitles
+13 videos with subtitles
 ```bash
-a=(jJZ66hPQLe4 VdmQp9M9jUo q_qdC6grfIA 5iszUCmLyW4 3NxKH1MK4z8 dFccny3iGbo 3NxKH1MK4z8 3NxKH1MK4z8 f_4Q9Iv7_Ao PKfR6bAXr-c)
-for i in ${a[*]}; do python vidpager.py a $i; done
+a=(jJZ66hPQLe4 7iup9-xtYuE VdmQp9M9jUo q_qdC6grfIA 5iszUCmLyW4 3NxKH1MK4z8 dFccny3iGbo f_4Q9Iv7_Ao PKfR6bAXr-c K9G9lfA8fa8 z2DpcdYuRGo s9yoGGIF6lQ 3_5rRtarU-Y)
+for i in ${a[*]}; do python vidpager.py ^SAVE_ONLY^ $i; done
 ```

@@ -3,7 +3,9 @@ import CONST
 from urllib.request import urlopen #to get subtitles
 import pafy #for getting metadata
 import re #for def store()
-import datetime # for datetime
+import datetime #for datetime
+import subprocess #for ask_youtube_dl_for_asr_subtitles
+from os import remove, path #for ask_youtube_dl_for_asr_subtitles
 
 """
 V0.1 GET yt subtitles
@@ -13,6 +15,7 @@ V0.3 added parse{date,subtitles} from DBTools, store returns json
 V.04 set youtube_data_api_key at start and not in each get_metadata call
      parse_date works fine, no need to print the match length
      urlid_validate_test replaced by vidpager.parse_yt_url, gets verified before
+V.05 ask_youtube_dl_for_asr_subtitles
 example API url to get subtitles
 https://www.youtube.com/api/timedtext?lang=en&v=3NxKH1MK4z8&fmt=vtt&name=
 """
@@ -40,8 +43,13 @@ def get_raw_subtitles(video_id):
         return False
 
 
-def store(urlid, get_asr_subtitles=False):
+def get_yt_dict(urlid, get_asr_subitles=False):
     """store a videos subtitles by urlid"""
+    def save_empty_subs():
+        #otherwise these would be saved as NULL
+        print('No subtitles avaliable, storing only metadata')
+        result['captions'] = ''
+        result['timestamps'] = ''
     metadata = get_metadata(urlid)
     if not metadata:
         print('Youtube not avaliable or BIG FAIL, HANDLE IT!!!!!')
@@ -57,14 +65,19 @@ def store(urlid, get_asr_subtitles=False):
      }
     raw_subs = get_raw_subtitles(urlid)
     if not raw_subs:
-        print('No subtitles avaliable, storing only metadata')
         asr = True
-        if get_asr_subtitles:
-            #TODO
-            pass
+        if get_asr_subitles:
+            #TODO parse_subtitles can't handle raw_asr_subs yet
+            raw_asr_subs = ask_youtube_dl_for_asr_subtitles(urlid)
+            if raw_asr_subs:
+                print('Testing length of subs',len(raw_asr_subs))
+                #parsed_subs = parse_subtitles(raw_asr_subs)
+                #result['captions'] = parsed_subs['captions']
+                #result['timestamps'] = parsed_subs['timestamps']
+            else:
+                save_empty_subs()
         else:
-            result['captions'] = ''
-            result['timestamps'] = ''
+            save_empty_subs()
     else:
         print('\nSubtitles avaliable!!!\n')
         asr = False
@@ -74,6 +87,32 @@ def store(urlid, get_asr_subtitles=False):
     result['asr'] = asr
     return result
 
+
+def ask_youtube_dl_for_asr_subtitles(urlid):
+    #TODO pls do this pythonic way
+    #TODO cleanup the temp.en.vtt
+    #maybe needed?
+    # --sub-lang en (other languages are ugly translate)
+    # --convert-subs vtt
+    # with no -o passed, default format would be:
+    # target_file = metadata['title'] + '-' + metadata['urlid'] + '.en.vtt'
+    ytdl_asubs = ['youtube-dl',urlid,'--write-auto-sub','--skip-download', '-o'+urlid]
+    if subprocess.run(ytdl_asubs).returncode == 0:
+        target_file = urlid + '.en.vtt'
+        if path.isfile(target_file):
+            print('Subtitles are in',target_file,'Loading')
+            with open(target_file, 'r') as f:
+                raw_subtitle_data = f.read()
+            remove(target_file)
+            #TODO try n except?
+            #TODO pass that parse_subs
+            return raw_subtitle_data
+        else:
+            print('Failed to find file',target_file)
+        print('Downloaded but no file? Probably not available, OR HANDLE!!!')
+        return False
+    else:
+        return False
 
 def get_date(video):
     """
