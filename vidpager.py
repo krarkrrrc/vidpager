@@ -6,6 +6,7 @@ import CONST
 from bot import GetSubtitles #for getting yt data
 from db import DbTools #for Db stuff
 import ScanTools #for searching
+import ui #for printing
 import os.path #for checking if db exist
 import re #for validate_yt_url
 
@@ -14,14 +15,6 @@ Main entry point for program
 """
 #TODO validate sys.argv[1], only string and spaces should be allowed
 #TODO logging (only for storing cases, no need for search_all runs)
-
-
-def search_one(input_url, target):
-    # search vid for keyword provided from cmd line
-    # TODO replace with ui print
-    for match in ScanTools.text_search( input_url, target ):
-        print("{0} - \"{1}\"\n"
-        "{2}\n".format(match['timestamp'], match['caption'], match['url']))
 
 
 def parse_yt_url(url):
@@ -63,20 +56,25 @@ if __name__ == '__main__':
     #TODO perhaps there is better way then with  tries?
     try:
         input_url = sys.argv[2]
-        #check if input was whole url, get only last 11 characters
+        #validate
         input_url = parse_yt_url(input_url)
         if input_url is False:
             raise ValueError
-        if DbTools.get_data(input_url, 'urlid') == input_url:
-            print(input_url, 'is already stored.\n')
+        #check db for the id
+        saved_urlid = DbTools.get_data(input_url, 'urlid')
+        if saved_urlid is not False and saved_urlid[0] == input_url:
+            if sys.argv[1] != '^SAVE_ONLY^':
+                ui.search_text_in_subtitles(input_url, sys.argv[1])
+            else:
+                #TODO is this bad? that this gets printed only with ^SAVE_ONLY^?
+                print(input_url, 'is already stored.\n')
         else:
+            #not saved, try to save
+            print('Trying to save subtitle data for video',input_url)
             subtitles_table_insert_data = GetSubtitles.store(input_url)
             if subtitles_table_insert_data:
-                print('Saving subtitles data for video',input_url)
                 DbTools.insert('subtitles_table',
                 **subtitles_table_insert_data)
-                #TODO skip searching if you just wan't to save
-                #search_one(input, sys.argv[1])
             else:
                 print('Failed to get data for insert')
     except IndexError:

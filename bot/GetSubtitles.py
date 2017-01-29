@@ -71,7 +71,7 @@ def store(urlid, get_asr_subtitles=False):
         parsed_subs = parse_subtitles(raw_subs)
         result['captions'] = parsed_subs['captions']
         result['timestamps'] = parsed_subs['timestamps']
-    result['asr'] : asr
+    result['asr'] = asr
     return result
 
 

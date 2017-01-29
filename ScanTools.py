@@ -37,25 +37,3 @@ def get_time_parameter( tag, timestamps ):
 
 def clean_caption( caption ):
     return re.sub( r'\\xe2\\x80\\x99', "'", re.sub( r'\\n', ' ', caption ) )
-
-def search_text_and_print_metadata(urlid, target, metadata):
-    """
-    move this to ui
-    urlid, target is for text_search
-    metadata is list of metadata from select query
-    """
-    for index, match in enumerate(text_search(urlid, target)):
-        #print header
-        if index == 0:
-            #metadata are based on DbTools.search_all
-            #index1 = title, rest is self explanatory
-            print("\n----- {0} -----".format(metadata[1]))
-            #skip first two indexes
-            for item in metadata[2:]:
-                print("Author:", metadata[2])
-                print("Category:", metadata[3])
-                print("-----{0}-------\n".format(len(metadata[1]) * '-'))
-                break
-        #print titles
-        print("{0} - \"{1}\"\n"
-        "{2}\n".format(match['timestamp'], match['caption'], match['url']))
