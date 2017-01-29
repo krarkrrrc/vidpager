@@ -21,19 +21,26 @@ def parse_yt_url(url):
     if re.match('[\w\d\-]{11}', url):
         #input is yt_id
         return url
+    elif 'youtu.be' in url and not '&feature=youtu.be' in url:
+        match = re.search('\/([\w\d\-]{11})', url)
+        if match != None:
+            return match.group(1)
     elif 'youtube.com' in url:
+        #TODO reddit_robot.py shouldn't give those
         if 'attribution_link' in url:
             #these vidoes can't be resolved
-            print('Attribution_link have to be resolved, meh this.')
+            print('SKIP:Attribution_link have to be resolved, meh this.')
             return False
-            #TODO reddit_robot.py should skip those
-        if 'playlist' in url:
-            print("Can't handle playlist links, yet.")
+        #TODO playlist can be in link after, double check
+        if 'youtube.com/playlist?list' in url:
+            print("SKIP:Can't handle playlist links, yet.")
             #TODO ask youtube_robot to get all links
             return False
         if 'channel' in url:
-            print("Won't handle channel links.")
+            print("SKIP:Won't handle channel links.")
             return False
+        if 'youtube.com/user' in url:
+            print("SKIP:Won't handle user links")
         youtube_r = 'v\=([\w\d\-]{11})'
         """works for:
         https://www.youtube.com/watch?v=m7B4JZAiG6c&index=17&list=PLRdw3IjKY2glNAk65mMuKe8Fy45-gFjxL
@@ -43,7 +50,6 @@ def parse_yt_url(url):
         match = re.search(youtube_r, url)
         if match != None:
             return match.group(1)
-    #TODO elif youtu.be??
     else:
         print(url, 'is not handled TODO!')
 
@@ -53,16 +59,17 @@ if __name__ == '__main__':
         DbTools.init()
 
     #check if url(sys.argv[2]) is passed
-    #TODO perhaps there is better way then with  tries?
+    #TODO do args stuff properly
     try:
         input_url = sys.argv[2]
         #validate
         input_url = parse_yt_url(input_url)
         if input_url is False:
-            raise ValueError
+            raise ValueError #exit 1
         #check db for the id
         saved_urlid = DbTools.get_data(input_url, 'urlid')
         if saved_urlid is not False and saved_urlid[0] == input_url:
+            #video saved, do search in it
             if sys.argv[1] != '^SAVE_ONLY^':
                 ui.search_text_in_subtitles(input_url, sys.argv[1])
             else:
@@ -78,6 +85,7 @@ if __name__ == '__main__':
             else:
                 print('Failed to get data for insert')
     except IndexError:
+        #only first arg passed
         DbTools.search_all(sys.argv[1])
     except ValueError:
         #url not validated
