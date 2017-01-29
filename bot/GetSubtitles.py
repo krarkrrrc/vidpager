@@ -12,10 +12,11 @@ V0.1 GET yt subtitles
 V0.2 GET video metadata using pafy
 V0.3 added parse{date,subtitles} from DBTools, store returns json
      if get_raw_subtitles returns false, report and set asr to True
-V.04 set youtube_data_api_key at start and not in each get_metadata call
+V0.4 set youtube_data_api_key at start and not in each get_metadata call
      parse_date works fine, no need to print the match length
      urlid_validate_test replaced by vidpager.parse_yt_url, gets verified before
-V.05 ask_youtube_dl_for_asr_subtitles
+V0.5 ask_youtube_dl_for_asr_subtitles
+     differentiate between parse error and no asr subtitles avaliable
 example API url to get subtitles
 https://www.youtube.com/api/timedtext?lang=en&v=3NxKH1MK4z8&fmt=vtt&name=
 """
@@ -24,10 +25,7 @@ pafy.set_api_key(CONST.youtube_data_api_key)
 
 
 def get_raw_subtitles(video_id):
-    """
-    return data from input_video url
-    TODO better error handling
-    """
+    """return data from input_video url"""
     #yt API url to download subtitles in vtt format
     url = 'https://www.youtube.com/api/timedtext?lang=en&v='\
     + video_id + '&fmt=vtt&name='
@@ -44,7 +42,13 @@ def get_raw_subtitles(video_id):
 
 
 def get_yt_dict(urlid, get_asr_subitles=False):
-    """store a videos subtitles by urlid"""
+    """store a videos subtitles by urlid
+    if get_asr_subtitles is true:
+        ytdl will be used to try to get
+        automaticly recognized subtitles and if video does not have them
+        only metadata are saved
+    else:
+        no metadata are saved"""
     def save_empty_subs():
         #otherwise these would be saved as NULL
         print('No subtitles avaliable, storing only metadata')
@@ -52,7 +56,8 @@ def get_yt_dict(urlid, get_asr_subitles=False):
         result['timestamps'] = ''
     metadata = get_metadata(urlid)
     if not metadata:
-        print('Youtube not avaliable or BIG FAIL, HANDLE IT!!!!!')
+        #TODO save somewhere that this is has issue like this, so its skipped
+        print('\nDEBUG: Youtube not avaliable or BIG FAIL, HANDLE IT!!!!!\n')
         return False
     result = {
     'author' : metadata.author,
@@ -68,16 +73,25 @@ def get_yt_dict(urlid, get_asr_subitles=False):
         asr = True
         if get_asr_subitles:
             #TODO parse_subtitles can't handle raw_asr_subs yet
-            parsed_asr_subs = ask_youtube_dl_for_asr_subtitles(urlid)
+            try:
+                parsed_asr_subs = ask_youtube_dl_for_asr_subtitles(urlid)
+            except ValueError: #returned if ytdl returns 0 but no file is loaded
+                print('Video does not have even asr subtitles')
+                #TODO download audio and make it yourself, NOPE!
+                save_empty_subs()
+                result['asr'] = asr
+                return result
             if parsed_asr_subs:
                 result['captions'] = parsed_asr_subs['captions']
                 result['timestamps'] = parsed_asr_subs['timestamps']
             else:
-                #download audio and make it yourself, NOPE!
-                print('Fail to pass subtitles, FIX!')
+                print('\nDEBUG: Fail to pass subtitles, FIX!!!\n')
                 return False
         else:
+            #not trying to save asr subtitles
             save_empty_subs()
+            result['asr'] = asr
+            return result
     else:
         print('\nSubtitles avaliable!!!\n')
         asr = False
@@ -89,6 +103,7 @@ def get_yt_dict(urlid, get_asr_subitles=False):
 
 
 def ask_youtube_dl_for_asr_subtitles(urlid):
+    """call ytdl, download auto subs and clean them so they can be parsed"""
     def clean_asr_subtitles(data):
         #probably static
         c1 = data.replace('<c>','').replace('</c>','')
@@ -99,14 +114,11 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
         for line in final.split('\n'):
             if line.startswith('00"'): #replace with re somehow or set?
                 result += line + '\n'
-            #elif len(line) > 1:
             else:
-                #print('TTTTTTt',line)
                 filt = re.sub('\<\d\d:\d\d:\d\d\.\d\d\d\>', '', line)
                 result += filt + '\n'
         return result
     #TODO pls do this pythonic way
-    #TODO cleanup the temp.en.vtt
     #maybe needed?
     # --sub-lang en (other languages are ugly translate)
     # --convert-subs vtt
@@ -131,15 +143,18 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
                 timestamps += '<' + str( count ) + '>' + match[0]
                 count += 1
             if len(matches) == 0:
-                #regex didn't work
+                print("re didn't work")
                 return False
             else:
+                print("Asr subs extracted")
                 return { 'captions' : captions, 'timestamps' : timestamps }
         else:
             print('Failed to find file',target_file)
         print('Downloaded but no file? Probably not available, OR HANDLE!!!')
+        raise ValueError
         return False
     else:
+        print("\nDEBUG: ytdl didn't return 0, what's wrong?\n")
         return False
 
 def get_date(video):
@@ -199,7 +214,7 @@ def parse_subtitles( subtitles ):
         timestamps += '<' + str( count ) + '>' + match[0]
         count += 1
     if len(matches) == 0:
-        #regex didn't work
+        print("re didn't work")
         return False
     else:
         return { 'captions' : captions, 'timestamps' : timestamps }
