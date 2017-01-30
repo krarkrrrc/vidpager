@@ -21,17 +21,27 @@ def parse_yt_url(url):
     if re.match('[\w\d\-]{11}', url):
         #input is yt_id
         return url
-    elif 'youtu.be' in url and not '&feature=youtu.be' in url:
+    #match only youtu.be/ID not:
+    #https://m.youtube.com/watch?feature=youtu.be&v=yYAw79386WI
+    elif 'youtu.be' in url and not 'feature=youtu.be' in url:
         match = re.search('\/([\w\d\-]{11})', url)
         if match != None:
             return match.group(1)
     elif 'youtube.com' in url:
         #TODO reddit_robot.py shouldn't give those
+        if 'youtube.com/embed/' in url:
+            match = re.search('\/([\w\d\-]{11})', url)
+            if match != None:
+                return match.group(1)
+        if 'youtube.com/shared' in url:
+            #match = re.search('ci\=([\w\d\-]{11})', url)
+            match = re.search('shared\?ci\=([\w\d\-]{11})', url)
+            if match != None:
+                return match.group(1)
         if 'attribution_link' in url:
             #these vidoes can't be resolved
             print('SKIP:Attribution_link have to be resolved, meh this.')
             return False
-        #TODO playlist can be in link after, double check
         if 'youtube.com/playlist?list' in url:
             print("SKIP:Can't handle playlist links, yet.")
             #TODO ask youtube_robot to get all links
@@ -41,17 +51,12 @@ def parse_yt_url(url):
             return False
         if 'youtube.com/user' in url:
             print("SKIP:Won't handle user links")
-        youtube_r = 'v\=([\w\d\-]{11})'
-        """works for:
-        https://www.youtube.com/watch?v=m7B4JZAiG6c&index=17&list=PLRdw3IjKY2glNAk65mMuKe8Fy45-gFjxL
-        https://www.youtube.com/watch?v=G9ebXtXO4lI&list=PLbVLa0kaymjgeExcgT-FGNRNvv_b-84lh&index=320
-        https://www.youtube.com/watch?v=NTh6tlNkpwc&feature=share
-        """
-        match = re.search(youtube_r, url)
+        match = re.search('v\=([\w\d\-]{11})', url)
         if match != None:
             return match.group(1)
     else:
-        print(url, 'is not handled TODO!')
+        print(url, 'is not YT, won\'t do those!')
+        sys.exit(2)
 
 if __name__ == '__main__':
     # make sure db exists, create one if not

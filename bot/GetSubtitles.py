@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 import CONST
 from urllib.request import urlopen #to get subtitles
+from urllib.error import HTTPError
 import pafy #for getting metadata
 import re #for def store()
 import datetime #for datetime
 import subprocess #for ask_youtube_dl_for_asr_subtitles
-from os import remove, path #for ask_youtube_dl_for_asr_subtitles
+from os import rename, remove, path #for ask_youtube_dl_for_asr_subtitles
 
 """
 V0.1 GET yt subtitles
@@ -36,6 +37,9 @@ def get_raw_subtitles(video_id):
             return data
         else:
             return False # no subtitles
+    except HTTPError as he:
+        print('url', url, 'returned' ,he)
+        return False
     except ValueError:
         print('Unkown url',url)
         return False
@@ -49,11 +53,15 @@ def get_yt_dict(urlid, get_asr_subitles=False):
         only metadata are saved
     else:
         no metadata are saved"""
+
+
     def save_empty_subs():
         #otherwise these would be saved as NULL
         print('No subtitles avaliable, storing only metadata')
         result['captions'] = ''
         result['timestamps'] = ''
+
+
     metadata = get_metadata(urlid)
     if not metadata:
         #TODO save somewhere that this is has issue like this, so its skipped
@@ -78,6 +86,7 @@ def get_yt_dict(urlid, get_asr_subitles=False):
             except ValueError: #returned if ytdl returns 0 but no file is loaded
                 print('Video does not have even asr subtitles')
                 #TODO download audio and make it yourself, NOPE!
+                #this could be saved to yt videos with no subtitles (they could appear in future tho)
                 save_empty_subs()
                 result['asr'] = asr
                 return result
@@ -96,20 +105,28 @@ def get_yt_dict(urlid, get_asr_subitles=False):
         print('\nSubtitles avaliable!!!\n')
         asr = False
         parsed_subs = parse_subtitles(raw_subs)
-        result['captions'] = parsed_subs['captions']
-        result['timestamps'] = parsed_subs['timestamps']
+        if parsed_subs:
+           result['captions'] = parsed_subs['captions']
+           result['timestamps'] = parsed_subs['timestamps']
+        else:
+            return False
     result['asr'] = asr
     return result
 
 
 def ask_youtube_dl_for_asr_subtitles(urlid):
     """call ytdl, download auto subs and clean them so they can be parsed"""
-    def clean_asr_subtitles(data):
+
+    def load_and_clean_subtitles_file(target_file):
+        with open(target_file, 'r') as f:
+            raw_subtitle_data = f.read()
         #probably static
-        c1 = data.replace('<c>','').replace('</c>','')
+        c1 = raw_subtitle_data.replace('<c>','').replace(' </c>','').replace('</c>','')
         c2 = c1.replace('<c.colorE5E5E5>','').replace('<c.colorCCCCCC>','')
         c3 = c2.replace(' align:start position:19%','') #have to do re
-        final = c3
+        c4 = c3.replace(' align:start position:0%','')
+        c5 = c4.replace(' align:start position:0% line:0%','')
+        final = c5
         result = ''
         for line in final.split('\n'):
             if line.startswith('00"'): #replace with re somehow or set?
@@ -118,23 +135,14 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
                 filt = re.sub('\<\d\d:\d\d:\d\d\.\d\d\d\>', '', line)
                 result += filt + '\n'
         return result
-    #TODO pls do this pythonic way
-    #maybe needed?
-    # --sub-lang en (other languages are ugly translate)
-    # --convert-subs vtt
-    # with no -o passed, default format would be:
-    # target_file = metadata['title'] + '-' + metadata['urlid'] + '.en.vtt'
-    #TODO Bug with urlid -8vDwiwlnmI, returns youtube-dl: error: no such option: -8
-    ytdl_asubs = ['youtube-dl', urlid,'--write-auto-sub','--skip-download', '-o'+urlid]
-    if subprocess.run(ytdl_asubs).returncode == 0:
-        target_file = urlid + '.en.vtt'
-        if path.isfile(target_file):
-            print('Subtitles are in',target_file,'Loading')
-            with open(target_file, 'r') as f:
-                raw_subtitle_data = f.read()
-            remove(target_file) #file loaded, clean
-            cleaned_subtitles = clean_asr_subtitles(raw_subtitle_data)
-            matches = re.findall( CONST.asr_raw_subs_patt, cleaned_subtitles)
+
+
+    def parse(subtitle_data):
+        matches = re.findall( CONST.asr_raw_subs_patt, subtitle_data)
+        if len(matches) == 0:
+            print("re didn't work")
+            return False
+        else:
             captions = ""
             timestamps = ""
             count = 0
@@ -142,12 +150,37 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
                 captions += '<' + str( count ) + '>' + match[1]
                 timestamps += '<' + str( count ) + '>' + match[0]
                 count += 1
-            if len(matches) == 0:
-                print("re didn't work")
-                return False
+            print("Asr subs extracted")
+            return { 'captions' : captions, 'timestamps' : timestamps }
+
+
+    #TODO pls do this pythonic way
+    #maybe needed?
+    # --sub-lang en (other languages are ugly translate)
+    # --convert-subs vtt
+    # with no -o passed, default format would be:
+    # target_file = metadata['title'] + '-' + metadata['urlid'] + '.en.vtt'
+    #TODO Bug with urlid -8vDwiwlnmI, returns youtube-dl: error: no such option: -8
+    """
+    a=[
+    '-t0CVzSdg2k'
+    ]
+    """
+    ytdl_asubs = ['youtube-dl', urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
+    if subprocess.run(ytdl_asubs).returncode == 0:
+        target_file = 'test_subs/' + urlid + '.en.vtt'
+        if path.isfile(target_file):
+            print('Subtitles are in',target_file,'Loading')
+            subtitle_data = load_and_clean_subtitles_file(target_file)
+            parsed_subs = parse(subtitle_data)
+            if parsed_subs:
+                #success
+                #remove(target_file) #file processed, clean
+                rename(target_file, 'done_subs/' + target_file.replace('test_subs/',''))
+                return parsed_subs
             else:
-                print("Asr subs extracted")
-                return { 'captions' : captions, 'timestamps' : timestamps }
+                #fail
+                return False
         else:
             print('Failed to find file',target_file)
         print('Downloaded but no file? Probably not available, OR HANDLE!!!')
@@ -156,6 +189,7 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
     else:
         print("\nDEBUG: ytdl didn't return 0, what's wrong?\n")
         return False
+
 
 def get_date(video):
     """
@@ -172,6 +206,11 @@ def get_date(video):
 
 
 def get_metadata(video_id):
+    """run pafy.new.url(video_id)"""
+    #this does not handle videos with shared, for some reason
+    #https://www.youtube.com/shared?ci=MAgxWmjPDhQ Captain Picard's best inspirational speeches
+    #which links to https://www.youtube.com/watch?v=Jph2qWXJ-Tk
+    #TODO try to find by title same video
     try:
         url = 'https://www.youtube.com/watch?v=' + video_id
         return pafy.new(url)
@@ -214,7 +253,7 @@ def parse_subtitles( subtitles ):
         timestamps += '<' + str( count ) + '>' + match[0]
         count += 1
     if len(matches) == 0:
-        print("re didn't work")
+        print("\n\nparsing of SAVED subs didn't work FIX!!!\n\n")
         return False
     else:
         return { 'captions' : captions, 'timestamps' : timestamps }
