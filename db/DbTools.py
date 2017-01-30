@@ -25,10 +25,10 @@ subtitles_table = Table("subtitles", metadata,
     Column("title", Unicode),
     Column("author", String),
     Column("length", Integer),
-    Column("date", DateTime), #Was Integer
+    Column("date", DateTime),
     Column("category", String),
     Column("tags", String),
-    Column("asr", Boolean) #Was Integer
+    Column("asr", Boolean)
 )
 
 

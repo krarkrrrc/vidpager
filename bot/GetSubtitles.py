@@ -34,7 +34,8 @@ def get_raw_subtitles(video_id):
         get = urlopen(url)
         data = get.read()
         if len(data) > 0:
-            return data
+            #convert to string and normalize new lines
+            return str(data).replace('\\n','\n')
         else:
             return False # no subtitles
     except HTTPError as he:
@@ -126,7 +127,8 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
         c3 = c2.replace(' align:start position:19%','') #have to do re
         c4 = c3.replace(' align:start position:0%','')
         c5 = c4.replace(' align:start position:0% line:0%','')
-        final = c5
+        c6 = c5.replace('&gt;&gt; ','')
+        final = c6
         result = ''
         for line in final.split('\n'):
             if line.startswith('00"'): #replace with re somehow or set?
@@ -160,14 +162,17 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
     # --convert-subs vtt
     # with no -o passed, default format would be:
     # target_file = metadata['title'] + '-' + metadata['urlid'] + '.en.vtt'
-    #TODO Bug with urlid -8vDwiwlnmI, returns youtube-dl: error: no such option: -8
-    """
-    a=[
-    '-t0CVzSdg2k'
-    ]
-    """
-    ytdl_asubs = ['youtube-dl', urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
-    if subprocess.run(ytdl_asubs).returncode == 0:
+    #TODO ffmpeg -in target_file output.srt, which does better cleaning
+    if urlid.startswith('-'):
+        #see https://github.com/rg3/youtube-dl#how-do-i-download-a-video-starting-with-a--
+        ytdl_asubs = ['youtube-dl', '--', urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
+    else:
+        ytdl_asubs = ['youtube-dl', urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
+    ytdl_process = subprocess.run(ytdl_asubs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if '[info] Writing video subtitles to' in str(ytdl_process.stdout):
+        print('Subtitles downloaded')
+    print('\n\nGOT',str(ytdl_process.stderr),'\n\n')
+    if ytdl_process.returncode == 0:
         target_file = 'test_subs/' + urlid + '.en.vtt'
         if path.isfile(target_file):
             print('Subtitles are in',target_file,'Loading')
@@ -244,7 +249,8 @@ def parse_subtitles( subtitles ):
     returns dict of captions and timestamps from subtitles in vtt from youtube
     """
     # match[0] is timestamp, [1] is caption
-    matches = re.findall( CONST.raw_subs_patt, str(subtitles)[2:-1] )
+    #matches = re.findall( CONST.raw_subs_patt, str(subtitles)[2:-1] )
+    matches = re.findall(CONST.raw_subs_patt, subtitles)
     captions = ""
     timestamps = ""
     count = 0
