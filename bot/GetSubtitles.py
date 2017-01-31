@@ -3,7 +3,7 @@ import CONST
 from urllib.request import urlopen #to get subtitles
 from urllib.error import HTTPError
 import pafy #for getting metadata
-import re #for def store()
+import re #for parsing subtitles
 import datetime #for datetime
 import subprocess #for ask_youtube_dl_for_auto_subs_subtitles
 from os import rename, remove, path #for ask_youtube_dl_for_auto_subs_subtitles
@@ -60,6 +60,7 @@ def get_metadata(video_id):
         print('Unkown url', url)
         return False
     except OSError: #pafy error
+        #TODO handle exact issue
         return False
 
 
@@ -85,6 +86,10 @@ def get_yt_dict(urlid, get_auto_subs=False):
         #TODO save somewhere that this is has issue like this, so its skipped
         print('\nDEBUG: Youtube not avaliable or BIG FAIL, HANDLE IT!!!!!\n')
         return False
+    #TODO handle errors for parse_date
+    #parsed_date = parse_date(metadata.published), #return datetime.datetime in utc
+    #if parsed_date is False:
+        #parse_date = ''
     result = {
     'author' : metadata.author,
     'category' : metadata.category,

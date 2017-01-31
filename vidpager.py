@@ -87,8 +87,8 @@ if __name__ == '__main__':
             if yt_subs_and_data:
                 DbTools.insert('subtitles_table',
                 **yt_subs_and_data)
-            if sys.argv[1] != '^SAVE_ONLY^':
-                ui.search_text_in_subtitles(input_url, sys.argv[1])
+                if sys.argv[1] != '^SAVE_ONLY^':
+                    ui.search_text_in_subtitles(input_url, sys.argv[1])
             else:
                 print('Failed to get data for insert')
     except IndexError:
