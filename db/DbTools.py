@@ -38,19 +38,15 @@ def init():
 
 
 def insert(table=None, *args, **kwargs):
-    def insert_to_subtitles( **kwargs ) :
-        """
-        Inserts a complete row into a table
-        video_data must be exact dict returned by bot
-        """
-        #TODO DON'T save same urlid twice, partially solved in try block in vidpager.py
-        #print( kwargs['urlid'], kwargs['author'], kwargs['title'] )
-        table_insert = Table.insert( subtitles_table ).values( **kwargs )
-        engine.execute(table_insert)
     if table == 'subtitles_table':
-        insert_to_subtitles( **kwargs )
+        #video_data must be exact dict returned by bot/GetSubtitles.get_yt_dict
+        #print( kwargs['urlid'], kwargs['author'], kwargs['title'] )
+        #TODO DON'T save same urlid twice, partially solved in try block in vidpager.py
+        table_insert = Table.insert(subtitles_table).values( **kwargs)
     else:
         raise NotImplementedError( "table '" + table + "' not implemented" )
+    #TODO try, results n stuff
+    engine.execute(table_insert)
 
 
 def get_data(urlid, *keys):
@@ -73,19 +69,3 @@ def get_data(urlid, *keys):
         return result
     else:
         return False
-
-
-def search_all(target):
-    metadata_with_subtitles = select([
-    subtitles_table.c.urlid,
-    subtitles_table.c.title,
-    subtitles_table.c.author,
-    subtitles_table.c.category]).\
-    where(subtitles_table.c.asr == 0)
-    raw_all = engine.execute(metadata_with_subtitles).fetchall()
-    print('Searching in',len(raw_all),'entries')
-    for row in raw_all:
-        #rawall is a list with sqlalchemy.engine.result.RowProxy
-        urlid = row.values()[0] #urlid is first in urlids_with_subtitles
-        #row is rest of the select which the function can print
-        ui.search_text_and_print_metadata(urlid, target, row)

@@ -140,7 +140,7 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
 
 
     def parse(subtitle_data):
-        matches = re.findall( CONST.asr_raw_subs_patt, subtitle_data)
+        matches = re.findall( CONST.raw_subs_patt, subtitle_data)
         if len(matches) == 0:
             print("re didn't work")
             return False
@@ -162,16 +162,22 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
     # --convert-subs vtt
     # with no -o passed, default format would be:
     # target_file = metadata['title'] + '-' + metadata['urlid'] + '.en.vtt'
-    #TODO ffmpeg -in target_file output.srt, which does better cleaning
+    #TODO ffmpeg -i target_file output.srt, which does better cleaning
+    #TODO don't save in dirs, that is just for debug, don't wanan bother with directories
     if urlid.startswith('-'):
         #see https://github.com/rg3/youtube-dl#how-do-i-download-a-video-starting-with-a--
-        ytdl_asubs = ['youtube-dl', '--', urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
+        ytdl_asubs = ['youtube-dl', 'https://www.youtube.com/watch?v=' + urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
     else:
         ytdl_asubs = ['youtube-dl', urlid,'--write-auto-sub','--skip-download', '-otest_subs/'+urlid]
     ytdl_process = subprocess.run(ytdl_asubs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if '[info] Writing video subtitles to' in str(ytdl_process.stdout):
+    if "[info] Writing video subtitles to" in str(ytdl_process.stdout):
         print('Subtitles downloaded')
-    print('\n\nGOT',str(ytdl_process.stderr),'\n\n')
+    if "Couldn't find automatic captions" in str(ytdl_process.stderr):
+        raise ValueError
+    #if GOT b"WARNING: Couldn't find automatic captions for 4PyvR05vrC8\n"
+    #then you are sure it can be flagged as that
+    print('\n\nOUT',str(ytdl_process.stdout),'\n\n')
+    print('\n\nERR',str(ytdl_process.stderr),'\n\n')
     if ytdl_process.returncode == 0:
         target_file = 'test_subs/' + urlid + '.en.vtt'
         if path.isfile(target_file):
@@ -181,6 +187,7 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
             if parsed_subs:
                 #success
                 #remove(target_file) #file processed, clean
+                #for debug
                 rename(target_file, 'done_subs/' + target_file.replace('test_subs/',''))
                 return parsed_subs
             else:
@@ -189,7 +196,6 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
         else:
             print('Failed to find file',target_file)
         print('Downloaded but no file? Probably not available, OR HANDLE!!!')
-        raise ValueError
         return False
     else:
         print("\nDEBUG: ytdl didn't return 0, what's wrong?\n")

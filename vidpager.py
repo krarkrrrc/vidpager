@@ -5,13 +5,15 @@ sys.path = ['.', '..'] + sys.path
 import CONST
 from bot import GetSubtitles #for getting yt data
 from db import DbTools #for Db stuff
-import ScanTools #for searching
 import ui #for printing
 import os.path #for checking if db exist
 import re #for validate_yt_url
 
 """
 Main entry point for program
+exits:
+0 - all ok
+1 - Unsupported URL
 """
 #TODO validate sys.argv[1], only string and spaces should be allowed
 #TODO logging (only for storing cases, no need for search_all runs)
@@ -46,6 +48,9 @@ def parse_yt_url(url):
             print("SKIP:Can't handle playlist links, yet.")
             #TODO ask youtube_robot to get all links
             return False
+        #really filter these
+        if 'youtube.com/results?search' in url:
+            return False
         if 'channel' in url:
             print("SKIP:Won't handle channel links.")
             return False
@@ -56,7 +61,7 @@ def parse_yt_url(url):
             return match.group(1)
     else:
         print(url, 'is not YT, won\'t do those!')
-        sys.exit(2)
+        sys.exit(1)
 
 if __name__ == '__main__':
     # make sure db exists, create one if not
@@ -67,31 +72,30 @@ if __name__ == '__main__':
     #TODO do args stuff properly
     try:
         input_url = sys.argv[2]
-        #validate
-        input_url = parse_yt_url(input_url)
-        if input_url is False:
+        input_url = parse_yt_url(input_url) #validate
+        if input_url is None:
             raise ValueError #exit 1
-        #check db for the id
-        saved_urlid = DbTools.get_data(input_url, 'urlid')
+        saved_urlid = DbTools.get_data(input_url, 'urlid') #check db for the id
         if saved_urlid is not False and saved_urlid[0] == input_url:
             #video saved, do search in it
             if sys.argv[1] != '^SAVE_ONLY^':
                 ui.search_text_in_subtitles(input_url, sys.argv[1])
             else:
-                #TODO is this bad? that this gets printed only with ^SAVE_ONLY^?
+                #only in saving mode
                 print(input_url, 'is already stored.\n')
         else:
             #not saved, try to save
             print('Trying to save subtitle data for video',input_url)
-            subtitles_table_insert_data = GetSubtitles.get_yt_dict(input_url, get_asr_subitles=True)
-            if subtitles_table_insert_data:
+            yt_subs_and_data = GetSubtitles.get_yt_dict(input_url, get_asr_subitles=True)
+            if yt_subs_and_data:
                 DbTools.insert('subtitles_table',
-                **subtitles_table_insert_data)
+                **yt_subs_and_data)
             else:
                 print('Failed to get data for insert')
     except IndexError:
         #only first arg passed
-        DbTools.search_all(sys.argv[1])
+        ui.search_all_and_print(sys.argv[1])
     except ValueError:
         #url not validated
-        sys.exit(1)
+        print('fix validation for', input_url)
+        sys.exit(888)
