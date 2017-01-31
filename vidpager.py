@@ -43,17 +43,14 @@ def parse_yt_url(url):
         if 'attribution_link' in url:
             #these vidoes can't be resolved
             print('SKIP:Attribution_link have to be resolved, meh this.')
-            return False
         if 'youtube.com/playlist?list' in url:
             print("SKIP:Can't handle playlist links, yet.")
             #TODO ask youtube_robot to get all links
-            return False
         #really filter these
         if 'youtube.com/results?search' in url:
-            return False
+            return None
         if 'channel' in url:
             print("SKIP:Won't handle channel links.")
-            return False
         if 'youtube.com/user' in url:
             print("SKIP:Won't handle user links")
         match = re.search('v\=([\w\d\-]{11})', url)
@@ -82,7 +79,7 @@ if __name__ == '__main__':
                 ui.search_text_in_subtitles(input_url, sys.argv[1])
             else:
                 #only in saving mode
-                print(input_url, 'is already stored.\n')
+                print(input_url, 'is already stored.')
         else:
             #not saved, try to save
             print('Trying to save subtitle data for video',input_url)
@@ -97,5 +94,4 @@ if __name__ == '__main__':
         ui.search_all_and_print(sys.argv[1])
     except ValueError:
         #url not validated
-        print('fix validation for', input_url)
         sys.exit(888)
