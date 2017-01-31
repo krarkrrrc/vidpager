@@ -28,7 +28,7 @@ subtitles_table = Table("subtitles", metadata,
     Column("date", DateTime),
     Column("category", String),
     Column("tags", String),
-    Column("asr", Boolean)
+    Column("asr", Boolean) #rename the value to auto_subs
 )
 
 

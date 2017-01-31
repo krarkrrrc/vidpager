@@ -5,8 +5,8 @@ from urllib.error import HTTPError
 import pafy #for getting metadata
 import re #for def store()
 import datetime #for datetime
-import subprocess #for ask_youtube_dl_for_asr_subtitles
-from os import rename, remove, path #for ask_youtube_dl_for_asr_subtitles
+import subprocess #for ask_youtube_dl_for_auto_subs_subtitles
+from os import rename, remove, path #for ask_youtube_dl_for_auto_subs_subtitles
 
 """
 V0.1 GET yt subtitles
@@ -16,8 +16,8 @@ V0.3 added parse{date,subtitles} from DBTools, store returns json
 V0.4 set youtube_data_api_key at start and not in each get_metadata call
      parse_date works fine, no need to print the match length
      urlid_validate_test replaced by vidpager.parse_yt_url, gets verified before
-V0.5 ask_youtube_dl_for_asr_subtitles
-     differentiate between parse error and no asr subtitles avaliable
+V0.5 ask_youtube_dl_for_auto_subs_subtitles
+     differentiate between parse error and no auto subs subtitles avaliable
 example API url to get subtitles
 https://www.youtube.com/api/timedtext?lang=en&v=3NxKH1MK4z8&fmt=vtt&name=
 """
@@ -34,6 +34,7 @@ def get_raw_subtitles(video_id):
         get = urlopen(url)
         data = get.read()
         if len(data) > 0:
+            #TODO check if it gets converted properly
             #convert to string and normalize new lines
             return str(data).replace('\\n','\n')
         else:
@@ -46,9 +47,25 @@ def get_raw_subtitles(video_id):
         return False
 
 
-def get_yt_dict(urlid, get_asr_subitles=False):
+def get_metadata(video_id):
+    """run pafy.new.url(video_id)"""
+    #this does not handle videos with shared, for some reason
+    #https://www.youtube.com/shared?ci=MAgxWmjPDhQ Captain Picard's best inspirational speeches
+    #which links to https://www.youtube.com/watch?v=Jph2qWXJ-Tk
+    #TODO try to find by title same video
+    try:
+        url = 'https://www.youtube.com/watch?v=' + video_id
+        return pafy.new(url)
+    except ValueError:
+        print('Unkown url', url)
+        return False
+    except OSError: #pafy error
+        return False
+
+
+def get_yt_dict(urlid, get_auto_subs=False):
     """store a videos subtitles by urlid
-    if get_asr_subtitles is true:
+    if get_auto_subs is true:
         ytdl will be used to try to get
         automaticly recognized subtitles and if video does not have them
         only metadata are saved
@@ -71,51 +88,51 @@ def get_yt_dict(urlid, get_asr_subitles=False):
     result = {
     'author' : metadata.author,
     'category' : metadata.category,
-    'date' : get_date(metadata),
+    'date' : parse_date(metadata.published), #return datetime.datetime in utc
     'length' : metadata.length,
-    'tags' : ','.join(metadata.keywords),
+    'tags' : ','.join(metadata.keywords), # convert the list to str
     'title' : metadata.title,
     'urlid' : urlid
      }
     raw_subs = get_raw_subtitles(urlid)
     if not raw_subs:
-        asr = True
-        if get_asr_subitles:
-            #TODO parse_subtitles can't handle raw_asr_subs yet
+        auto_subs = True
+        if get_auto_subs:
             try:
-                parsed_asr_subs = ask_youtube_dl_for_asr_subtitles(urlid)
+                parsed_auto_subs = ask_youtube_dl_for_auto_subs_subtitles(urlid)
             except ValueError: #returned if ytdl returns 0 but no file is loaded
-                print('Video does not have even asr subtitles')
+                print('Video does not have auto subs.')
                 #TODO download audio and make it yourself, NOPE!
                 #this could be saved to yt videos with no subtitles (they could appear in future tho)
                 save_empty_subs()
-                result['asr'] = asr
+                result['asr'] = auto_subs
                 return result
-            if parsed_asr_subs:
-                result['captions'] = parsed_asr_subs['captions']
-                result['timestamps'] = parsed_asr_subs['timestamps']
+            if parsed_auto_subs:
+                result['captions'] = parsed_auto_subs['captions']
+                result['timestamps'] = parsed_auto_subs['timestamps']
             else:
                 print('\nDEBUG: Fail to pass subtitles, FIX!!!\n')
                 return False
         else:
-            #not trying to save asr subtitles
+            #not trying to save auto_subs subtitles
             save_empty_subs()
-            result['asr'] = asr
+            result['asr'] = auto_subs
             return result
     else:
         print('\nSubtitles avaliable!!!\n')
-        asr = False
+        auto_subs = False
         parsed_subs = parse_subtitles(raw_subs)
         if parsed_subs:
            result['captions'] = parsed_subs['captions']
            result['timestamps'] = parsed_subs['timestamps']
         else:
+            print("\n\nparsing of SAVED subs didn't work FIX!!!\n\n")
             return False
-    result['asr'] = asr
+    result['asr'] = auto_subs
     return result
 
 
-def ask_youtube_dl_for_asr_subtitles(urlid):
+def ask_youtube_dl_for_auto_subs_subtitles(urlid):
     """call ytdl, download auto subs and clean them so they can be parsed"""
 
     def load_and_clean_subtitles_file(target_file):
@@ -137,23 +154,6 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
                 filt = re.sub('\<\d\d:\d\d:\d\d\.\d\d\d\>', '', line)
                 result += filt + '\n'
         return result
-
-
-    def parse(subtitle_data):
-        matches = re.findall( CONST.raw_subs_patt, subtitle_data)
-        if len(matches) == 0:
-            print("re didn't work")
-            return False
-        else:
-            captions = ""
-            timestamps = ""
-            count = 0
-            for match in matches:
-                captions += '<' + str( count ) + '>' + match[1]
-                timestamps += '<' + str( count ) + '>' + match[0]
-                count += 1
-            print("Asr subs extracted")
-            return { 'captions' : captions, 'timestamps' : timestamps }
 
 
     #TODO pls do this pythonic way
@@ -183,15 +183,16 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
         if path.isfile(target_file):
             print('Subtitles are in',target_file,'Loading')
             subtitle_data = load_and_clean_subtitles_file(target_file)
-            parsed_subs = parse(subtitle_data)
+            parsed_subs = parse_subtitles(subtitle_data)
             if parsed_subs:
                 #success
+                print("Auto subs extracted")
                 #remove(target_file) #file processed, clean
                 #for debug
                 rename(target_file, 'done_subs/' + target_file.replace('test_subs/',''))
                 return parsed_subs
             else:
-                #fail
+                print("DEBUG: Auto subs extract fail.")
                 return False
         else:
             print('Failed to find file',target_file)
@@ -202,54 +203,6 @@ def ask_youtube_dl_for_asr_subtitles(urlid):
         return False
 
 
-def get_date(video):
-    """
-    returns datetime.datetime object from pafy.new('videoid').published
-    prints for which video (pafy.new object) the date is invalid
-    """
-    date_str = video.published
-    # verify date is valid
-    try:
-        datetime = parse_date( date_str )
-    except TypeError as e:
-        print( CONST.vp_error + 'invalid date found for title: ' + video.title )
-    return datetime
-
-
-def get_metadata(video_id):
-    """run pafy.new.url(video_id)"""
-    #this does not handle videos with shared, for some reason
-    #https://www.youtube.com/shared?ci=MAgxWmjPDhQ Captain Picard's best inspirational speeches
-    #which links to https://www.youtube.com/watch?v=Jph2qWXJ-Tk
-    #TODO try to find by title same video
-    try:
-        url = 'https://www.youtube.com/watch?v=' + video_id
-        return pafy.new(url)
-    except ValueError:
-        print('Unkown url', url)
-        return False
-    except OSError: #pafy error
-        return False
-
-
-
-def parse_date( date_str ):
-    """
-    Converts datetime string returned from pafy.new('videoid').published
-    """
-    match = re.search( r'(\d{4})-(\d\d)-(\d\d)\s(\d\d):(\d\d):(\d\d)', date_str ).groups()
-    try:
-        date = datetime.datetime(
-        int( match[0] ), int( match[1] ), int( match[2] ), int( match[3] ),
-        int( match[4] ), int( match[5] ), tzinfo=datetime.timezone.utc )
-    except TypeError as e:
-        print('{0} valid date string not found in '
-              'StoreSubtitlesFromUrlid.parse_date() {1}'
-              .format(CONST.vp_error, e))
-        raise e
-    return date
-
-
 def parse_subtitles( subtitles ):
     """
     returns dict of captions and timestamps from subtitles in vtt from youtube
@@ -257,6 +210,8 @@ def parse_subtitles( subtitles ):
     # match[0] is timestamp, [1] is caption
     #matches = re.findall( CONST.raw_subs_patt, str(subtitles)[2:-1] )
     matches = re.findall(CONST.raw_subs_patt, subtitles)
+    if len(matches) == 0:
+        return False
     captions = ""
     timestamps = ""
     count = 0
@@ -264,8 +219,45 @@ def parse_subtitles( subtitles ):
         captions += '<' + str( count ) + '>' + match[1]
         timestamps += '<' + str( count ) + '>' + match[0]
         count += 1
-    if len(matches) == 0:
-        print("\n\nparsing of SAVED subs didn't work FIX!!!\n\n")
-        return False
     else:
         return { 'captions' : captions, 'timestamps' : timestamps }
+
+def parse_date(date_str):
+    """
+    Converts string (e.g 2017-01-30 00:47:44) to datetime.datetime
+    returned from pafy.new('videoid').published
+    """
+    pattern = pattern = '%Y-%m-%d %H:%M:%S'
+    try:
+        date = datetime.datetime.strptime(date_str, pattern)
+        return date.replace(tzinfo=datetime.timezone.utc)
+    except ValueError:
+        print('pattern does not match')
+        return False
+
+def old_get_date(video):
+    def old_parse_date( date_str ):
+        """Converts datetime string (e.g 2017-01-30 00:47:44)
+        returned from pafy.new('videoid').published"""
+        match = re.search( r'(\d{4})-(\d\d)-(\d\d)\s(\d\d):(\d\d):(\d\d)', date_str ).groups()
+        try:
+            date = datetime.datetime(
+            int( match[0] ), int( match[1] ), int( match[2] ), int( match[3] ),
+            int( match[4] ), int( match[5] ), tzinfo=datetime.timezone.utc )
+        except TypeError as e:
+            print('{0} valid date string not found in '
+                  'StoreSubtitlesFromUrlid.parse_date() {1}'
+                  .format(CONST.vp_error, e))
+            raise e
+        return date
+    """
+    returns datetime.datetime object from pafy.new('videoid').published
+    prints for which video (pafy.new object) the date is invalid
+    """
+    date_str = video.published
+    # verify date is valid
+    try:
+        datetime = old_parse_date( date_str )
+    except TypeError as e:
+        print( CONST.vp_error + 'invalid date found for title: ' + video.title )
+    return datetime

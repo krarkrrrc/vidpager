@@ -83,10 +83,12 @@ if __name__ == '__main__':
         else:
             #not saved, try to save
             print('Trying to save subtitle data for video',input_url)
-            yt_subs_and_data = GetSubtitles.get_yt_dict(input_url, get_asr_subitles=True)
+            yt_subs_and_data = GetSubtitles.get_yt_dict(input_url, get_auto_subs=True)
             if yt_subs_and_data:
                 DbTools.insert('subtitles_table',
                 **yt_subs_and_data)
+            if sys.argv[1] != '^SAVE_ONLY^':
+                ui.search_text_in_subtitles(input_url, sys.argv[1])
             else:
                 print('Failed to get data for insert')
     except IndexError:
